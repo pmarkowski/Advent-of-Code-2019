@@ -15,4 +15,16 @@ let getTotalFuelNeededToLaunchMass (path:string) =
     readFileToIntegerList path
     |> List.map calculateFuelNeededByMass
     |> List.sum
-    
+
+// Part 2
+
+let rec calculateFuelNeededByMassIncludingFuel (mass:int) =
+    if mass = 0 then 0
+    else 
+        let fuelRequired = max 0 (calculateFuelNeededByMass mass)
+        fuelRequired + (calculateFuelNeededByMassIncludingFuel fuelRequired)
+
+let getTotalFuelNeededToLaunchMassIncludingFuel (path:string) =
+    readFileToIntegerList path
+    |> List.map calculateFuelNeededByMassIncludingFuel
+    |> List.sum
