@@ -44,4 +44,30 @@ let solvePart1 inputFile =
     |> runIntCode 0
     |> List.head
 
+
 // Part 2
+let intCodeWithInputs (noun, verb) intcode =
+    intcode
+    |> intCodeWithValueAtLocation 1 noun
+    |> intCodeWithValueAtLocation 2 verb
+
+let runIntCodeWithInputs (noun, verb) intcode =
+    intCodeWithInputs (noun, verb) intcode
+    |> runIntCode 0
+    |> List.head
+
+let findInputsForCodeWithResult result intcode =
+    let rec findInputsForCodeWithResult result (noun, verb) intcode =
+        let intCodeOutput = runIntCodeWithInputs (noun, verb) intcode
+        if intCodeOutput = result then (noun, verb)
+        else if verb < 99 then findInputsForCodeWithResult result (noun, verb + 1) intcode
+        else findInputsForCodeWithResult result (noun + 1, 0) intcode
+    findInputsForCodeWithResult result (0, 0) intcode
+
+let solvePart2 inputFile =
+    inputFile
+    |> readFileToInstructionText
+    |> findInputsForCodeWithResult 19690720
+    |> fun (noun, verb) -> 100 * noun + verb
+
+let part1Soln = solvePart2 inputFile
