@@ -70,4 +70,4 @@ let solvePart2 inputFile =
     |> findInputsForCodeWithResult 19690720
     |> fun (noun, verb) -> 100 * noun + verb
 
-let part1Soln = solvePart2 inputFile
+let part2Soln = solvePart2 inputFile
