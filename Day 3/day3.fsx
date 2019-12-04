@@ -5,7 +5,7 @@ let inputPath = Path.Combine(__SOURCE_DIRECTORY__, "input.txt")
 let calculateManhattanDistance (x:int, y:int) =
     abs x + abs y
 
-let inline (+) (x:int, y:int) (x2:int, y2:int) =
+let addCoordinate (x:int, y:int) (x2:int, y2:int) =
     (x + x2, y + y2)
 
 type Direction = { direction: string; distance: int }
@@ -30,7 +30,7 @@ let rec moveCoordinateTrailByDirection (currentDirection:Direction) coordinateTr
     let iterator = getIteratorForDirection currentDirection
     if currentDirection.distance = 0 then coordinateTrail
     else
-    (currentPosition + iterator)::coordinateTrail
+    (addCoordinate currentPosition iterator)::coordinateTrail
     |> moveCoordinateTrailByDirection {currentDirection with distance = currentDirection.distance - 1}
 
 let directionListToCoordinateList directionList =
@@ -46,10 +46,13 @@ let directionListToCoordinateList directionList =
     |> directionListToCoordinateList [(0,0)]
 
 let getAllIntersectingCoordinates coordinateList1 coordinateList2 =
-    coordinateList1
+    let coordinateSet1 = Set.ofList coordinateList1
+    let coordinateSet2 = Set.ofList coordinateList2
+    coordinateSet1
     |> Set.filter (fun coordinate ->
         coordinate <> (0,0) &&
-        Set.contains coordinate coordinateList2)
+        Set.contains coordinate coordinateSet2)
+    |> Set.toList    
 
 let getLowestManhattanDistance coordinateList =
     coordinateList
@@ -60,10 +63,39 @@ let getInputPair inputPath =
     File.ReadLines inputPath
         |> Seq.map readStringToDirectionList
         |> Seq.map directionListToCoordinateList
-        |> Seq.map Set.ofList
 
 let solveProblem1 inputPath =
     let inputPair = getInputPair inputPath
-    getAllIntersectingCoordinates (Seq.head inputPair) (Seq.head (Seq.tail inputPair))
-    |> Set.toList
+    let firstList = Seq.head inputPair
+    let secondList = Seq.head (Seq.tail inputPair)
+    getAllIntersectingCoordinates firstList secondList
     |> getLowestManhattanDistance
+
+let getStepsToCoordinate
+    (targetCoordinate:int*int)
+    (coordinateList:list<int*int>)
+    : int =
+    coordinateList
+    |> List.takeWhile (fun coordinate -> coordinate <> targetCoordinate)
+    |> List.length
+ 
+let sumStepsToCoordinate coordinate coordinateList1 coordinateList2 : int =
+    (getStepsToCoordinate coordinate coordinateList1) +
+    (getStepsToCoordinate coordinate coordinateList2)
+
+let getLowestTravelDistance
+    (coordinateList1:(int*int) list)
+    (coordinateList2:(int*int) list)
+    (intersectingCoordinates:(int*int) list)
+    : int =
+    intersectingCoordinates
+    |> List.map (fun coordinate -> (sumStepsToCoordinate coordinate coordinateList1 coordinateList2))
+    |> List.min
+
+let solveProblem2 inputPath =
+    let inputPair = getInputPair inputPath
+    let firstList = Seq.head inputPair
+    let secondList = Seq.head (Seq.tail inputPair)
+    getAllIntersectingCoordinates firstList secondList
+    |> getLowestTravelDistance firstList secondList
+ 
