@@ -38,3 +38,8 @@ let rec findAllValidPasswordsBetween lowerBound upperBound =
 let isValidPassword2 input =
     isValidPassword input &&
     digitsContainOneDouble input
+
+let rec findAllValidPasswordsBetween2 lowerBound upperBound =
+    if lowerBound = upperBound then 0
+    else if isValidPassword2 lowerBound then (+) 1 (findAllValidPasswordsBetween2 (lowerBound + 1) upperBound)
+    else findAllValidPasswordsBetween2 (lowerBound + 1) upperBound
