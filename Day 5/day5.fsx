@@ -31,6 +31,14 @@ let getValue (intcode:int list) (parameter:int) (parameterMode:int) =
     | 1 -> parameter
     | _ -> failwith "Unsupported parameter mode"
 
+let lessThan x y =
+    if x < y then 1
+    else 0
+
+let equal x y =
+    if x = y then 1
+    else 0
+
 let rec runIntcode i (intcode:int list) =
     // i is the operation we're executing
     // i + 1 is position of first input
@@ -67,13 +75,31 @@ let rec runIntcode i (intcode:int list) =
         printfn "%d" output
         runIntcode (i + 2) intcode
 
-    let opCode = intcode.[i] % 100
-    match opCode with
+    let jumpOnComparisonToZero i operation (intcode:int list) =
+        let opcode = intcode.[i]
+
+        let firstParameterMode = getValueOfDigit opcode 2
+        let secondParameterMode = getValueOfDigit opcode 3
+
+        let firstParameterValue = getValue intcode intcode.[i + 1] firstParameterMode
+        let secondParameterValue = getValue intcode intcode.[i + 2] secondParameterMode
+
+        if operation firstParameterValue 0 then
+            runIntcode secondParameterValue intcode
+        else
+            runIntcode (i + 3) intcode
+
+    let opcode = intcode.[i] % 100
+    match opcode with
     | 99 -> intcode
     | 1 -> applyAndStoreOperation i (+) intcode
     | 2 -> applyAndStoreOperation i (*) intcode
     | 3 -> storeInputOperation i intcode
     | 4 -> outputOperation i intcode
+    | 5 -> jumpOnComparisonToZero i (<>) intcode
+    | 6 -> jumpOnComparisonToZero i (=) intcode
+    | 7 -> applyAndStoreOperation i lessThan intcode
+    | 8 -> applyAndStoreOperation i equal intcode
     | _ -> failwith "Invalid op code encountered"
 
 let solvePart1 inputFile =
