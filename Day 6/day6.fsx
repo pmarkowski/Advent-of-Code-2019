@@ -20,9 +20,19 @@ let rec addToOrbitMap (orbitMap:OrbitMap) (orbitPair: string * string) =
 let orbitCouplesToOrbitMap
     (orbitCouples:seq<string * string>)
     : OrbitMap =
+    
+    let rec orbitCouplesToOrbitMap orbitMap orbitCouples =
+        let orbitsToAdd = Seq.where (fun orbitCouple -> (fst orbitCouple) = orbitMap.Name) orbitCouples
+        if Seq.isEmpty orbitsToAdd then
+            orbitMap
+        else
+            let newOrbitMap = orbitsToAdd |> Seq.fold addToOrbitMap orbitMap
+            { newOrbitMap with OrbitedBy = List.map (fun orbitMap -> orbitCouplesToOrbitMap orbitMap orbitCouples) newOrbitMap.OrbitedBy }
+
     let initialOrbitMap = { Name = "COM"; OrbitedBy = [] }
+
     orbitCouples
-    |> Seq.fold addToOrbitMap initialOrbitMap
+    |> orbitCouplesToOrbitMap initialOrbitMap
 
 let getNumberOfDirectOrbits (orbitMap:OrbitMap) : int =
     orbitMap.OrbitedBy.Length
