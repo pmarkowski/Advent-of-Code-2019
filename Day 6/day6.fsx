@@ -10,21 +10,31 @@ let orbitStringToCouple (orbitString:string) =
     let orbitPair = orbitString.Split([|')'|])
     (orbitPair.[0], orbitPair.[1]) 
 
-let addToOrbitMap (orbitMap:OrbitMap) (orbitPair: string * string) =
+let rec addToOrbitMap (orbitMap:OrbitMap) (orbitPair: string * string) =
     if orbitMap.Name = (fst orbitPair) then
-        {orbitMap with OrbitedBy = { Name = (snd orbitPair)::orbitMap.OrbitedBy} }
+        {orbitMap with OrbitedBy = { Name = (snd orbitPair); OrbitedBy = []; }::orbitMap.OrbitedBy}
     else
         // return orbit map having called addToOrbitMap to all its children
+        {orbitMap with OrbitedBy = List.map (fun orbitMap -> addToOrbitMap orbitMap orbitPair) orbitMap.OrbitedBy}
 
 let orbitCouplesToOrbitMap
     (orbitCouples:seq<string * string>)
     : OrbitMap =
-    let initialOrbitMap = { Name = "COM"; OrbitedBy = Seq.empty }
+    let initialOrbitMap = { Name = "COM"; OrbitedBy = [] }
     orbitCouples
     |> Seq.fold addToOrbitMap initialOrbitMap
 
-let calculateChecksum (orbitMap:OrbitMap) : int =
-    0
+let getNumberOfDirectOrbits (orbitMap:OrbitMap) : int =
+    orbitMap.OrbitedBy.Length
+
+let rec getNumberOfDirectAndInderictOrbits (orbitMap:OrbitMap) : int =
+    if List.isEmpty orbitMap.OrbitedBy then 0
+    else
+        (getNumberOfDirectOrbits orbitMap) + List.sumBy getNumberOfDirectAndInderictOrbits orbitMap.OrbitedBy
+
+let rec calculateChecksum (orbitMap:OrbitMap) : int =
+    let numberOfOrbits = getNumberOfDirectAndInderictOrbits orbitMap
+    numberOfOrbits + (List.sumBy calculateChecksum orbitMap.OrbitedBy)
 
 let solveProblem1 inputPath =
     File.ReadLines inputPath
