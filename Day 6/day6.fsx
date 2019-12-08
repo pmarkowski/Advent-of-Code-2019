@@ -3,6 +3,7 @@ open System.IO
 
 let inputPath = Path.Combine(__SOURCE_DIRECTORY__, "input.txt")
 let testInputPath = Path.Combine(__SOURCE_DIRECTORY__, "sample-input.txt")
+let test2InputPath = Path.Combine(__SOURCE_DIRECTORY__, "sample-input2.txt")
 
 type OrbitMap = { Name: string; OrbitedBy: (OrbitMap list); }
 
@@ -46,8 +47,29 @@ let rec calculateChecksum (orbitMap:OrbitMap) : int =
     let numberOfOrbits = getNumberOfDirectAndInderictOrbits orbitMap
     numberOfOrbits + (List.sumBy calculateChecksum orbitMap.OrbitedBy)
 
-let solveProblem1 inputPath =
+let fileToOrbitMap inputPath =
     File.ReadLines inputPath
     |> Seq.map orbitStringToCouple
     |> orbitCouplesToOrbitMap
+
+let solveProblem1 inputPath =
+    inputPath
+    |> fileToOrbitMap
     |> calculateChecksum
+
+let rec findShortestRouteTo object orbitMap : int =
+    if (List.isEmpty orbitMap.OrbitedBy) then 999999999 // This is gross and really should be something like returning None (int option) but it works
+    else if List.contains { Name = object; OrbitedBy = [] } orbitMap.OrbitedBy then 0
+    else
+        1 + List.min (List.map (fun orbitMap -> findShortestRouteTo object orbitMap) orbitMap.OrbitedBy)
+
+let rec findShortestRouteBetween object1 object2 orbitMap : int =
+    let shortestRouteToObject1 = findShortestRouteTo object1 orbitMap
+    let shortestRouteToObject2 = findShortestRouteTo object2 orbitMap
+    let shortestRouteBetweenObjects = shortestRouteToObject1 + shortestRouteToObject2
+    List.min (shortestRouteBetweenObjects::(List.map (fun orbitMap -> (findShortestRouteBetween object1 object2 orbitMap)) orbitMap.OrbitedBy))
+
+let solveProblem2 inputPath =
+    inputPath
+    |> fileToOrbitMap
+    |> findShortestRouteBetween "YOU" "SAN"
