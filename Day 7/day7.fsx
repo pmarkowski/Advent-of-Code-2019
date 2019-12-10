@@ -39,69 +39,85 @@ let equal x y =
     if x = y then 1
     else 0
 
+type IntcodeComputer = {
+    InstructionPointer : int;
+    Input : int list;
+    Output : int list;
+    Intcode : int list;
+}
+
 let runIntcode (input:int list) (intcode:int list) : int list =
-    let rec runIntcode i (input:int list) (output:int list) (intcode:int list) =
+    let rec runIntcode (intcodeComputer:IntcodeComputer) =
         // i is the operation we're executing
         // i + 1 is position of first input
         // i + 2 is position of second input
         // i + 3 is where we want to store results
         // i + 4 is next operation
-        let applyAndStoreOperation i input output operation (intcode:int list)  =
-            let opcode = intcode.[i]
+        let applyAndStoreOperation operation (intcodeComputer:IntcodeComputer) =
+            let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer]
 
             let firstParameterMode = getValueOfDigit opcode 2
             let secondParameterMode = getValueOfDigit opcode 3
 
-            let firstParameterValue = getValue intcode intcode.[i + 1] firstParameterMode
-            let secondParameterValue = getValue intcode intcode.[i + 2] secondParameterMode
+            let firstParameterValue = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1] firstParameterMode
+            let secondParameterValue = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 2] secondParameterMode
 
             let operationResult = operation firstParameterValue secondParameterValue
-            let storageLocation = intcode.[i + 3]
+            let storageLocation = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 3]
 
-            runIntcode (i + 4) input output (intcodeWithValueAtLocation storageLocation operationResult intcode)
+            runIntcode { intcodeComputer with
+                            InstructionPointer = intcodeComputer.InstructionPointer + 4;
+                            Intcode = (intcodeWithValueAtLocation storageLocation operationResult intcodeComputer.Intcode) }
 
         // i is the operation we're executing
         // i + 1 is the position we want to store our input
-        let storeInputOperation i input output (intcode:int list) =
-            let inputValue = List.head input
-            runIntcode (i + 2) (List.tail input) output (intcodeWithValueAtLocation intcode.[i+1] inputValue intcode)
+        let storeInputOperation intcodeComputer =
+            let inputValue = List.head intcodeComputer.Input
+            runIntcode { intcodeComputer with
+                            InstructionPointer = intcodeComputer.InstructionPointer + 2;
+                            Input = (List.tail intcodeComputer.Input)
+                            Intcode = (intcodeWithValueAtLocation intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1] inputValue intcodeComputer.Intcode) }
 
         // i is the operation we're executing
         // i + 1 is the position we want to output
-        let outputOperation i input (output:int list) (intcode:int list) =
-            let opcode = intcode.[i]
+        let outputOperation intcodeComputer =
+            let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer]
             let firstParameterMode = getValueOfDigit opcode 2
-            let outputValue = getValue intcode intcode.[i+1] firstParameterMode
-            runIntcode (i + 2) input (outputValue::output) intcode
+            let outputValue = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1] firstParameterMode
+            runIntcode { intcodeComputer with
+                            InstructionPointer = intcodeComputer.InstructionPointer + 2;
+                            Output = outputValue::intcodeComputer.Output; }
 
-        let jumpOnComparisonToZero i input output operation (intcode:int list) =
-            let opcode = intcode.[i]
+        let jumpOnComparisonToZero operation (intcodeComputer:IntcodeComputer) =
+            let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer]
 
             let firstParameterMode = getValueOfDigit opcode 2
             let secondParameterMode = getValueOfDigit opcode 3
 
-            let firstParameterValue = getValue intcode intcode.[i + 1] firstParameterMode
-            let secondParameterValue = getValue intcode intcode.[i + 2] secondParameterMode
+            let firstParameterValue = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1] firstParameterMode
+            let secondParameterValue = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 2] secondParameterMode
 
             if operation firstParameterValue 0 then
-                runIntcode secondParameterValue input output intcode
+                runIntcode { intcodeComputer with
+                                InstructionPointer = secondParameterValue; }
             else
-                runIntcode (i + 3) input output intcode
+                runIntcode { intcodeComputer with
+                                InstructionPointer = (intcodeComputer.InstructionPointer + 3); }
 
-        let opcode = intcode.[i] % 100
+        let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer] % 100
         match opcode with
-        | 99 -> output |> List.rev
-        | 1 -> applyAndStoreOperation i input output (+) intcode
-        | 2 -> applyAndStoreOperation i input output (*) intcode
-        | 3 -> storeInputOperation i input output intcode
-        | 4 -> outputOperation i input output intcode
-        | 5 -> jumpOnComparisonToZero i input output (<>) intcode
-        | 6 -> jumpOnComparisonToZero i input output (=) intcode
-        | 7 -> applyAndStoreOperation i input output lessThan intcode
-        | 8 -> applyAndStoreOperation i input output equal intcode
+        | 99 -> intcodeComputer.Output |> List.rev
+        | 1 -> applyAndStoreOperation (+) intcodeComputer
+        | 2 -> applyAndStoreOperation (*) intcodeComputer
+        | 3 -> storeInputOperation intcodeComputer
+        | 4 -> outputOperation intcodeComputer
+        | 5 -> jumpOnComparisonToZero (<>) intcodeComputer
+        | 6 -> jumpOnComparisonToZero (=) intcodeComputer
+        | 7 -> applyAndStoreOperation lessThan intcodeComputer
+        | 8 -> applyAndStoreOperation equal intcodeComputer
         | _ -> failwith "Invalid op code encountered"
 
-    runIntcode 0 input [] intcode
+    runIntcode { InstructionPointer = 0; Input = input; Output = []; Intcode = intcode }
 
 let test1PhaseSettings = [4;3;2;1;0]
 let test1Intcode = stringToIntcode "3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0"
@@ -144,3 +160,5 @@ let solveProblem1 inputPath =
     let inputIntcode = readFileToIntcode inputPath
     let allPhasePermutations = getAllPermutations [0..4]
     List.max (List.map (fun phasePermutation -> runAmplifierControllers 0 phasePermutation inputIntcode) allPhasePermutations)
+
+solveProblem1 inputFile;;
