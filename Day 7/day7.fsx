@@ -44,9 +44,10 @@ type IntcodeComputer = {
     Input : int list;
     Output : int list;
     Intcode : int list;
+    ProgramCompleted : bool;
 }
 
-let runIntcode (input:int list) (intcode:int list) : int list =
+let runIntcode (input:int list) (intcode:int list) : IntcodeComputer =
     let rec runIntcode (intcodeComputer:IntcodeComputer) =
         // i is the operation we're executing
         // i + 1 is position of first input
@@ -106,7 +107,9 @@ let runIntcode (input:int list) (intcode:int list) : int list =
 
         let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer] % 100
         match opcode with
-        | 99 -> intcodeComputer.Output |> List.rev
+        | 99 -> { intcodeComputer with
+                    Output = intcodeComputer.Output |> List.rev;
+                    ProgramCompleted = true; }
         | 1 -> applyAndStoreOperation (+) intcodeComputer
         | 2 -> applyAndStoreOperation (*) intcodeComputer
         | 3 -> storeInputOperation intcodeComputer
@@ -117,7 +120,7 @@ let runIntcode (input:int list) (intcode:int list) : int list =
         | 8 -> applyAndStoreOperation equal intcodeComputer
         | _ -> failwith "Invalid op code encountered"
 
-    runIntcode { InstructionPointer = 0; Input = input; Output = []; Intcode = intcode }
+    runIntcode { InstructionPointer = 0; Input = input; Output = []; Intcode = intcode; ProgramCompleted = false; }
 
 let test1PhaseSettings = [4;3;2;1;0]
 let test1Intcode = stringToIntcode "3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0"
@@ -134,7 +137,8 @@ let test3Max = 65210
 let rec runAmplifierControllers (input:int) (phaseArray:int list) (intcode:int list) =
 
     let runAmplifierController (phase:int, input:int) (intcode:int list) =
-        runIntcode [phase; input] intcode
+        let finalIntcodeComputerState = runIntcode [phase; input] intcode
+        finalIntcodeComputerState.Output
         |> List.head
 
     if List.isEmpty phaseArray then input
