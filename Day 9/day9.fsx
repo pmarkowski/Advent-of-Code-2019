@@ -5,8 +5,8 @@ let inputFile = "input.txt"
 
 let stringToIntcode (textInput:string) =
     textInput.Split([|','|])
-    |> Array.map int64
-    |> Array.toSeq
+    |> Array.mapi (fun index value -> (index, int64 value))
+    |> Map.ofArray
 
 let readFileToIntcode path =
     Path.Combine(__SOURCE_DIRECTORY__, path)
@@ -14,22 +14,24 @@ let readFileToIntcode path =
     |> Seq.head
     |> stringToIntcode
 
-let intcodeWithValueAtLocation storageLocation operationResult intcode =
-    intcode
-    |> Seq.mapi (fun i value ->
-        if i = (int storageLocation) then operationResult
-        else value)
+let intcodeWithValueAtLocation storageLocation operationResult (intcode:Map<int, int64>) =
+    Map.add storageLocation operationResult intcode
 
 let getValueOfDigit number digitPlace =
     let powerOfTen =  int64 (Math.Pow(10.0, (float digitPlace)))
     let nextPowerOfTen = powerOfTen * 10L
     ((number % nextPowerOfTen) - (number % powerOfTen)) / powerOfTen
 
-let getValue (intcode:int64 seq) (parameter:int64) (parameterMode:int64) (relativeBase:int) =
+let getValueFromIntcode index intcode =
+    if Map.containsKey index intcode then
+        (intcode.[index], intcode)
+    else (0L, Map.add index 0L intcode)
+
+let getValue (intcode:(Map<int, int64>)) (parameter:int64) (parameterMode:int64) (relativeBase:int) =
     match parameterMode with
-    | 0L -> Seq.item (int parameter) intcode
-    | 1L -> parameter
-    | 2L -> Seq.item (relativeBase + (int parameter)) intcode
+    | 0L -> getValueFromIntcode (int parameter) intcode
+    | 1L -> (parameter, intcode)
+    | 2L -> getValueFromIntcode (relativeBase + (int parameter)) intcode
     | _ -> failwith "Unsupported parameter mode"
 
 let lessThan x y =
@@ -44,7 +46,7 @@ type IntcodeComputer = {
     InstructionPointer : int;
     Input : int64 list;
     Output : int64 list;
-    Intcode : int64 seq;
+    Intcode : Map<int, int64>;
     ProgramCompleted : bool;
     RelativeBase: int;
 }
@@ -56,31 +58,35 @@ let rec runIntcodeComputer (intcodeComputer:IntcodeComputer) =
     // i + 3 is where we want to store results
     // i + 4 is next operation
     let applyAndStoreOperation operation (intcodeComputer:IntcodeComputer) =
-        let opcode = Seq.item intcodeComputer.InstructionPointer intcodeComputer.Intcode
+        let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer]
 
         let firstParameterMode = getValueOfDigit opcode 2
         let secondParameterMode = getValueOfDigit opcode 3
         let thirdParameterMode = getValueOfDigit opcode 4
 
-        let firstParameterValue = getValue intcodeComputer.Intcode (Seq.item (intcodeComputer.InstructionPointer + 1) intcodeComputer.Intcode) firstParameterMode intcodeComputer.RelativeBase
-        let secondParameterValue = getValue intcodeComputer.Intcode (Seq.item (intcodeComputer.InstructionPointer + 2) intcodeComputer.Intcode) secondParameterMode intcodeComputer.RelativeBase
+        let (firstParameterValue, _) = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1] firstParameterMode intcodeComputer.RelativeBase
+        let (secondParameterValue, _ ) = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 2] secondParameterMode intcodeComputer.RelativeBase
 
         let operationResult = operation firstParameterValue secondParameterValue
-        let storageLocation = if thirdParameterMode = 0L then (Seq.item (intcodeComputer.InstructionPointer + 3) intcodeComputer.Intcode) else ((Seq.item (intcodeComputer.InstructionPointer + 3) intcodeComputer.Intcode) + (int64 intcodeComputer.RelativeBase))
+        let storageLocation =
+            if thirdParameterMode = 0L then intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 3]
+            else (intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 3] + (int64 intcodeComputer.RelativeBase))
 
         runIntcodeComputer { intcodeComputer with
                                 InstructionPointer = intcodeComputer.InstructionPointer + 4;
-                                Intcode = (intcodeWithValueAtLocation storageLocation operationResult intcodeComputer.Intcode) }
+                                Intcode = (intcodeWithValueAtLocation (int storageLocation) operationResult intcodeComputer.Intcode) }
 
     // i is the operation we're executing
     // i + 1 is the position we want to store our input
     let storeInputOperation intcodeComputer =
         let inputValue = List.tryHead intcodeComputer.Input
 
-        let opcode = Seq.item intcodeComputer.InstructionPointer intcodeComputer.Intcode
+        let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer]
 
         let firstParameterMode = getValueOfDigit opcode 2
-        let storageLocation = if firstParameterMode = 0L then (Seq.item (intcodeComputer.InstructionPointer + 1) intcodeComputer.Intcode) else ((Seq.item (intcodeComputer.InstructionPointer + 1) intcodeComputer.Intcode) + (int64 intcodeComputer.RelativeBase))
+        let storageLocation =
+            if firstParameterMode = 0L then intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1]
+            else (intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1] + (int64 intcodeComputer.RelativeBase))
 
         match inputValue with
         | None -> { intcodeComputer with ProgramCompleted = false; }
@@ -88,26 +94,26 @@ let rec runIntcodeComputer (intcodeComputer:IntcodeComputer) =
             intcodeComputer with
                 InstructionPointer = intcodeComputer.InstructionPointer + 2;
                 Input = (List.tail intcodeComputer.Input)
-                Intcode = (intcodeWithValueAtLocation storageLocation inputValue intcodeComputer.Intcode) }
+                Intcode = (intcodeWithValueAtLocation (int storageLocation) inputValue intcodeComputer.Intcode) }
 
     // i is the operation we're executing
     // i + 1 is the position we want to output
     let outputOperation intcodeComputer =
-        let opcode = (Seq.item intcodeComputer.InstructionPointer intcodeComputer.Intcode)
+        let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer]
         let firstParameterMode = getValueOfDigit opcode 2
-        let outputValue = getValue intcodeComputer.Intcode (Seq.item (intcodeComputer.InstructionPointer + 1) intcodeComputer.Intcode) firstParameterMode intcodeComputer.RelativeBase
+        let (outputValue, _) = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1] firstParameterMode intcodeComputer.RelativeBase
         runIntcodeComputer { intcodeComputer with
                                 InstructionPointer = intcodeComputer.InstructionPointer + 2;
                                 Output = outputValue::intcodeComputer.Output; }
 
     let jumpOnComparisonToZero operation (intcodeComputer:IntcodeComputer) =
-        let opcode = (Seq.item intcodeComputer.InstructionPointer intcodeComputer.Intcode)
+        let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer]
 
         let firstParameterMode = getValueOfDigit opcode 2
         let secondParameterMode = getValueOfDigit opcode 3
 
-        let firstParameterValue = getValue intcodeComputer.Intcode (Seq.item (intcodeComputer.InstructionPointer + 1) intcodeComputer.Intcode) firstParameterMode intcodeComputer.RelativeBase
-        let secondParameterValue = getValue intcodeComputer.Intcode (Seq.item (intcodeComputer.InstructionPointer + 2) intcodeComputer.Intcode) secondParameterMode intcodeComputer.RelativeBase
+        let (firstParameterValue, _) = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1] firstParameterMode intcodeComputer.RelativeBase
+        let (secondParameterValue, _) = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 2] secondParameterMode intcodeComputer.RelativeBase
 
         if operation firstParameterValue 0L then
             runIntcodeComputer { intcodeComputer with
@@ -117,16 +123,16 @@ let rec runIntcodeComputer (intcodeComputer:IntcodeComputer) =
                                     InstructionPointer = (intcodeComputer.InstructionPointer + 3); }
 
     let relativeBaseOffsetOperation intcodeComputer =
-        let opcode = (Seq.item intcodeComputer.InstructionPointer intcodeComputer.Intcode)
+        let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer]
         let firstParameterMode = getValueOfDigit opcode 2
 
-        let firstParameterValue = getValue intcodeComputer.Intcode (Seq.item (intcodeComputer.InstructionPointer + 1) intcodeComputer.Intcode) firstParameterMode intcodeComputer.RelativeBase
+        let (firstParameterValue, _) = getValue intcodeComputer.Intcode intcodeComputer.Intcode.[intcodeComputer.InstructionPointer + 1] firstParameterMode intcodeComputer.RelativeBase
 
         runIntcodeComputer { intcodeComputer with
                                 InstructionPointer = (intcodeComputer.InstructionPointer + 2);
                                 RelativeBase = (intcodeComputer.RelativeBase + int firstParameterValue); }
 
-    let opcode = (Seq.item intcodeComputer.InstructionPointer intcodeComputer.Intcode) % 100L
+    let opcode = intcodeComputer.Intcode.[intcodeComputer.InstructionPointer] % 100L
     match opcode with
     | 99L -> { intcodeComputer with
                 Output = intcodeComputer.Output |> List.rev;
@@ -142,10 +148,15 @@ let rec runIntcodeComputer (intcodeComputer:IntcodeComputer) =
     | 9L -> relativeBaseOffsetOperation intcodeComputer
     | _ -> failwith "Invalid op code encountered"
 
-let runIntcode (input:int64 list) (intcode:int64 seq) : IntcodeComputer =
-    runIntcodeComputer { InstructionPointer = 0; Input = input; Output = []; Intcode = Seq.append intcode (Seq.initInfinite (fun x-> 0L)); ProgramCompleted = false; RelativeBase = 0; }
+let runIntcode (input:int64 list) (intcode:Map<int, int64>) : IntcodeComputer =
+    runIntcodeComputer { InstructionPointer = 0; Input = input; Output = []; Intcode = intcode; ProgramCompleted = false; RelativeBase = 0; }
 
 let solveProblem1 inputPath =
     inputPath
     |> readFileToIntcode
     |> runIntcode [1L]
+
+let solveProblem2 inputPath =
+    inputPath
+    |> readFileToIntcode
+    |> runIntcode [2L]
