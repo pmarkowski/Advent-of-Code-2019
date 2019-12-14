@@ -81,3 +81,34 @@ let solveProblem1 inputPath =
     |> parseStringsToMoons
     |> simulateSteps 1000
     |> calculateTotalEnergy
+
+let simulateUntilInitialStateMatched moons =
+    let rec simulateUntilInitialStateMatched initialMoons moons steps =
+        if steps > 0 && initialMoons = moons then steps
+        else
+            simulateUntilInitialStateMatched initialMoons (simulateSteps 1 moons) (steps + 1)
+    simulateUntilInitialStateMatched moons moons 0
+
+let fastSimulateUntilInitialStateMatched moons =
+    let rec greatestCommonDenominator x y =
+        if y = 0I then abs x
+        else greatestCommonDenominator y (x % y)
+    let lowestCommonMultiple x y =
+        x * y / (greatestCommonDenominator x y)
+    
+    let getXPeriod = simulateUntilInitialStateMatched (List.map (fun moon ->
+        let (x, _, _) = moon.Position
+        { moon with Position = (x, 0, 0) }) moons)
+    let getYPeriod = simulateUntilInitialStateMatched (List.map (fun moon ->
+        let (_, y, _) = moon.Position
+        { moon with Position = (0, y, 0) }) moons)
+    let getZPeriod = simulateUntilInitialStateMatched (List.map (fun moon ->
+        let (_, _, z) = moon.Position
+        { moon with Position = (0, 0, z) }) moons)
+    List.reduce lowestCommonMultiple [bigint getXPeriod; bigint getYPeriod; bigint getZPeriod;]
+
+let solveProblem2 inputPath =
+    inputPath
+    |> File.ReadAllLines
+    |> parseStringsToMoons
+    |> fastSimulateUntilInitialStateMatched
